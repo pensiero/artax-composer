@@ -1,0 +1,32 @@
+{
+    "name":         "pensiero/artax-composer",
+    "description":  "Wrapper of the Artax library",
+    "type":         "library",
+    "license":      "BSD-3-Clause",
+    "homepage":     "https://github.com/pensiero/artax-composer",
+    "keywords": [
+        "zf2",
+        "amphp",
+        "artax"
+    ],
+    "authors": [
+        {
+            "name":      "Oscar Fanelli",
+            "email":     "oscar.fanelli@gmail.com",
+            "homepage":  "http://www.oscarfanelli.com",
+            "role":      "Developer"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.3.3",
+        "amphp/artax": "1.*",
+        "zendframework/zend-cache": "2.5.*",
+        "zendframework/zend-validator": "2.5.*"
+    },
+    "autoload": {
+        "psr-0": {
+            "ArtaxComposer\\": "src/"
+        }
+    }
+}
