@@ -25,7 +25,7 @@ return [
          * Clear the seeds directory in order to have fresh results
          */
         'seeds' => [
-            'enabled'   => true,
+            'enabled'   => false,
             'directory' => 'data/seeds/',
         ],
 
