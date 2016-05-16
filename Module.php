@@ -2,14 +2,12 @@
 namespace ArtaxComposer;
 
 use Zend\ModuleManager\Feature\AutoloaderProviderInterface;
-use Zend\ModuleManager\Feature\BootstrapListenerInterface;
 use Zend\ModuleManager\Feature\ConfigProviderInterface;
 use Zend\Mvc\ModuleRouteListener;
 use Zend\Mvc\MvcEvent;
 
 class Module implements
     AutoloaderProviderInterface,
-    BootstrapListenerInterface,
     ConfigProviderInterface
 {
     public function onBootstrap(MvcEvent $e)

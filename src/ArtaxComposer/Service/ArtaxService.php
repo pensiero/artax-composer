@@ -9,8 +9,8 @@ use Amp\Artax\Client as ArtaxClient;
 use Amp\Artax\SocketException as AmpSocketException;
 use Amp\Dns\ResolutionException as AmpResolutionException;
 use Nbsock\SocketException as NbsockSocketException;
-use Zend\Cache\Storage\Adapter\AbstractAdapter as CacheAdapter;
-use Zend\Validator\AbstractValidator;
+use ArtaxComposer\Exception\NotProvidedException;
+use Zend\Cache\Storage\Adapter\AbstractAdapter as AbstractCacheAdapter;
 
 class ArtaxService
 {
@@ -22,6 +22,16 @@ class ArtaxService
 
     // max attempts for artax requests
     const REQUEST_MAX_ATTEMPTS = 2;
+
+    /**
+     * @var array
+     */
+    protected $config;
+
+    /**
+     * @var AbstractCacheAdapter
+     */
+    protected $cache;
 
     /**
      * @var string
@@ -49,11 +59,6 @@ class ArtaxService
     protected $authToken;
 
     /**
-     * @var CacheAdapter
-     */
-    protected $cache;
-
-    /**
      * @var bool
      */
     public $useCache = false;
@@ -66,6 +71,11 @@ class ArtaxService
     /**
      * @var array
      */
+    protected $headers = [];
+
+    /**
+     * @var array
+     */
     protected $headersToReturn = [];
 
     /**
@@ -73,40 +83,31 @@ class ArtaxService
      */
     protected $debug = false;
 
-
-    public function __construct($cache = null)
+    /**
+     * ArtaxService constructor.
+     *
+     * @param array                             $config
+     * @param AbstractCacheAdapter|null $cache
+     */
+    public function __construct($config, $cache = null)
     {
+        $this->config = $config;
         $this->cache = $cache;
-    }
 
-    protected function getHeaders()
-    {
-        // locale
-        $translator = AbstractValidator::getDefaultTranslator();
-        $locale = $translator->getLocale();
-
-        $headers = [
-            'Accept'          => 'application/json',
-            'Content-Type'    => 'application/json; charset=utf-8',
-            'X-Client-Auth'   => getenv('API_KEY'),
-            'Accept-Language' => $locale,
-        ];
-
-        if ($this->authToken) {
-            $headers['Authorization'] = 'Token token="' . $this->authToken . '"';
+        // default headers specificied in config
+        if (isset($this->config['default_headers'])) {
+            $this->setHeaders($this->config['default_headers']);
         }
-
-        return $headers;
     }
 
     /**
      * Decide in which format response should be returned
      *
-     * @param $response
+     * @param array $response
      *
      * @return mixed|string
      */
-    private function formatResponseToReturn($response)
+    private function formatResponseToReturn(array $response)
     {
         switch ($this->resultFormat) {
             case 'array':
@@ -131,7 +132,7 @@ class ArtaxService
             implode('|', [
                 $this->uri,
                 $this->method,
-                json_encode($this->getHeaders()),
+                json_encode($this->headers),
                 json_encode($this->params),
             ])
         );
@@ -141,7 +142,6 @@ class ArtaxService
      * Do the request (enabled multiple attempts)
      *
      * @param ArtaxMessage $request
-     * @param string       $seedFilepath
      * @param int          $attempt
      *
      * @return ArtaxResponse|mixed
@@ -149,7 +149,7 @@ class ArtaxService
      * @throws NbsockSocketException
      * @throws null
      */
-    private function doRequest(ArtaxMessage $request, $seedFilepath, $attempt = 1)
+    private function doRequest(ArtaxMessage $request, $attempt = 1)
     {
         $artaxClient = new ArtaxClient();
         $artaxClient->setOption(ArtaxClient::OP_MS_CONNECT_TIMEOUT, self::OP_MS_CONNECT_TIMEOUT); // connection timeout
@@ -167,12 +167,12 @@ class ArtaxService
             ) {
                 // try a second attempt
                 if ($attempt < self::REQUEST_MAX_ATTEMPTS) {
-                    return $this->doRequest($request, $seedFilepath, $attempt + 1);
+                    return $this->doRequest($request, $attempt + 1);
                 }
 
                 // use seeds if we are offline (SocketException mean that we are offline)
-                if (getenv('ENV') == 'development' && file_exists($seedFilepath)) {
-                    return json_decode(file_get_contents($seedFilepath), true);
+                if ($seeds = $this->findSeeds()) {
+                    return $seeds;
                 }
             }
 
@@ -180,6 +180,91 @@ class ArtaxService
         }
 
         return $ampResponse;
+    }
+
+    /**
+     * Elaborate seeds filepath based on cachekey
+     *
+     * @return string
+     */
+    private function getSeedsFilepath()
+    {
+        // directory and filepath
+        $directory = rtrim($this->config['seeds']['directory'], '/') . '/';
+
+        // create directory if not exist
+        if (!file_exists($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        // cache key
+        $cacheKey = $this->generateCacheKey();
+
+        return $directory . $cacheKey;
+    }
+
+    /**
+     * Return seeds if there are
+     *
+     * @return bool|mixed
+     * @throws NotProvidedException
+     */
+    private function findSeeds()
+    {
+        // check if seeds are enabled
+        if ($this->config['seeds']['enabled'] !== true) {
+            return false;
+        }
+
+        // seeds directory
+        if (empty($this->config['seeds']['directory'])) {
+            throw new NotProvidedException('Seeds directory must be provided in order to write seeds.');
+        }
+
+        // filepath
+        $filepath = $this->getSeedsFilepath();
+
+        // return only if seeds are present
+        if (file_exists($filepath)) {
+            $response = json_decode(file_get_contents($filepath), true);
+            return $this->formatResponseToReturn($response);
+        }
+
+        return false;
+    }
+
+    /**
+     * Write seeds if it can
+     *
+     * @param $response
+     *
+     * @return bool|null
+     * @throws NotProvidedException
+     */
+    private function writeSeeds($response)
+    {
+        // check if seeds are enabled
+        if ($this->config['seeds']['enabled'] !== true) {
+            return false;
+        }
+
+        // seeds directory
+        if (empty($this->config['seeds']['directory'])) {
+            throw new NotProvidedException('Seeds directory must be provided in order to write seeds.');
+        }
+
+        // filepath
+        $filepath = $this->getSeedsFilepath();
+
+        // return only if seeds are present
+        if (!file_exists($filepath)) {
+
+            file_put_contents($filepath, json_encode($response));
+
+            return true;
+        }
+
+        return null;
     }
 
     /**
@@ -209,7 +294,8 @@ class ArtaxService
             // cache key
             $cacheKey = $this->generateCacheKey();
 
-            if ($this->useCache && $this->cache) {
+            // cache
+            if ($this->useCache) {
 
                 // if cached response is found, return it formatted
                 if ($this->cache->hasItem($cacheKey)) {
@@ -221,22 +307,21 @@ class ArtaxService
             // log time (START)
             $timeStart = microtime(true);
 
-            // seeds (only development)
-            $seedFilepath = 'data/seeds/' . $cacheKey;
-            if (getenv('USE_API_SEEDS') == 'true' && getenv('ENV') == 'development' && file_exists($seedFilepath)) {
-                return json_decode(file_get_contents($seedFilepath), true);
+            // return seeds if present
+            if ($seeds = $this->findSeeds()) {
+                return $seeds;
             }
 
             $request = (new ArtaxRequest)->setUri($this->uri)
                                          ->setMethod($this->method)
-                                         ->setAllHeaders($this->getHeaders());
+                                         ->setAllHeaders($this->headers);
 
             if ($this->params != null) {
                 $request->setBody(json_encode($this->params));
             }
 
             // make the request (first attempt)
-            $ampResponse = $this->doRequest($request, $seedFilepath);
+            $ampResponse = $this->doRequest($request);
 
             // return response if it's not an ArtaxResponse (it could be a string cached in local file)
             if (!$ampResponse instanceof ArtaxResponse) {
@@ -245,7 +330,7 @@ class ArtaxService
 
             // log time (END)
             $timeEnd = microtime(true);
-            if (extension_loaded('newrelic')) {
+            if ($this->config['newrelic'] === true && extension_loaded('newrelic')) {
                 newrelic_custom_metric('Custom/Artax/Load_time', round($timeEnd - $timeStart));
             }
 
@@ -261,23 +346,18 @@ class ArtaxService
             }
 
             // store response in cache
-            if ($this->useCache && $this->cache) {
-                $cacheKey = $this->generateCacheKey();
+            if ($this->useCache) {
                 $this->cache->setItem($cacheKey, $response);
 
                 // TODO cache ttl (set timeout on specific cache key)
                 if ($this->cacheTtl) {}
             }
 
-            // reformat response
-            $response = $this->formatResponseToReturn($response);
-
             // seeds
-            if (getenv('ENV') == 'development') {
-                file_put_contents($seedFilepath, json_encode($response));
-            }
+            $this->writeSeeds($response);
 
-            return $response;
+            // reformat response
+            return $this->formatResponseToReturn($response);
 
         } catch (\Exception $error) {
             throw new \Exception($error);
@@ -304,9 +384,14 @@ class ArtaxService
      * @param int $ttl
      *
      * @return $this
+     * @throws NotProvidedException
      */
     public function useCache($ttl = self::CACHE_TTL)
     {
+        if (!$this->cache) {
+            throw new NotProvidedException('Cache must be provided in order to use it. Check your configuration file.');
+        }
+
         $this->useCache = true;
         $this->cacheTtl = $ttl;
 
@@ -314,6 +399,8 @@ class ArtaxService
     }
 
     /**
+     * GET request
+     *
      * @return mixed
      * @throws \Exception
      *
@@ -327,6 +414,8 @@ class ArtaxService
     }
 
     /**
+     * POST request
+     *
      * @return mixed
      * @throws \Exception
      *
@@ -344,6 +433,8 @@ class ArtaxService
     }
 
     /**
+     * PUT request
+     *
      * @return mixed
      * @throws \Exception
      *
@@ -357,6 +448,8 @@ class ArtaxService
     }
 
     /**
+     * DELETE request
+     *
      * @return mixed
      * @throws \Exception
      *
@@ -369,6 +462,11 @@ class ArtaxService
         return $this->request();
     }
 
+    /**
+     * The response will be in object format
+     *
+     * @return $this
+     */
     public function returnObject()
     {
         $this->resultFormat = 'object';
@@ -376,6 +474,11 @@ class ArtaxService
         return $this;
     }
 
+    /**
+     * The response will be in array format
+     *
+     * @return $this
+     */
     public function returnArray()
     {
         $this->resultFormat = 'array';
@@ -383,6 +486,11 @@ class ArtaxService
         return $this;
     }
 
+    /**
+     * The response will be in JSON format
+     *
+     * @return $this
+     */
     public function returnJson()
     {
         $this->resultFormat = 'json';
@@ -435,7 +543,34 @@ class ArtaxService
     {
         $this->authToken = $authToken;
 
+        // add authorization token header
+        $this->addHeader('Authorization', 'Token token="' . $this->authToken . '"');
+
         return $this;
+    }
+
+    /**
+     * Add an header
+     *
+     * @param $name
+     * @param $value
+     */
+    public function addHeader($name, $value)
+    {
+        $this->headers[$name] = $value;
+    }
+
+    /**
+     * Replace all headers
+     *
+     * @param $headers
+     *
+     * @internal param $name
+     * @internal param $value
+     */
+    public function setHeaders($headers)
+    {
+        $this->headers = $headers;
     }
 
     /**
@@ -450,6 +585,7 @@ class ArtaxService
         $this->authToken = null;
         $this->useCache = false;
         $this->cacheTtl = null;
+        $this->headers = [];
         $this->headersToReturn = [];
 
         return $this;
@@ -463,10 +599,12 @@ class ArtaxService
     public function debug()
     {
         $this->debug = true;
+
+        return $this;
     }
 
     /**
-     * Return debug informations
+     * Return debug information
      *
      * @return array
      */
@@ -482,7 +620,7 @@ class ArtaxService
             'cache'           => $this->cache,
             'useCache'        => $this->useCache,
             'cacheTtl'        => $this->cacheTtl,
-            'headers'         => $this->getHeaders(),
+            'headers'         => $this->headers,
             'headersToReturn' => $this->headersToReturn,
         ];
     }
