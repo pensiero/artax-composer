@@ -8,7 +8,6 @@ use ArtaxComposer\Service\ArtaxService;
 
 class ArtaxServiceFactory implements FactoryInterface
 {
-
     /**
      * Load the cache via the Cache config
      *
@@ -58,5 +57,4 @@ class ArtaxServiceFactory implements FactoryInterface
 
         return new ArtaxService($config, $cache);
     }
-
 }
