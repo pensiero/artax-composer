@@ -24,7 +24,7 @@
         "zendframework/zend-loader": "2.4.*",
         "zendframework/zend-modulemanager": "2.4.*",
         "zendframework/zend-mvc": "2.4.*",
-        "zendframework/zend-servicemanager": "~2.1",
+        "zendframework/zend-servicemanager": "2.4.*",
         "zendframework/zend-validator": "2.4.*"
     },
     "autoload": {
