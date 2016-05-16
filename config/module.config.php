@@ -40,6 +40,6 @@ return [
         /*
          * Enable or not the newrelic extension
          */
-        'newrelic' => true,
+        'newrelic' => false,
     ],
 ];
