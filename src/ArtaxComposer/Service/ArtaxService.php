@@ -389,7 +389,7 @@ class ArtaxService
     public function useCache($ttl = self::CACHE_TTL)
     {
         if (!$this->cache) {
-            throw new NotProvidedException('Cache must be provided in order to use it. Check your configuration file.');
+            return $this;
         }
 
         $this->useCache = true;
