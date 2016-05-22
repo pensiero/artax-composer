@@ -587,6 +587,12 @@ class ArtaxService
         $this->cacheTtl = null;
         $this->headers = [];
         $this->headersToReturn = [];
+        $this->debug = false;
+
+        // default headers specificied in config
+        if (isset($this->config['default_headers'])) {
+            $this->setHeaders($this->config['default_headers']);
+        }
 
         return $this;
     }
