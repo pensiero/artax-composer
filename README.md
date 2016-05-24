@@ -67,67 +67,67 @@ You can ovveride them in your `module.config.php`
 
 Each methods is chainable, except for the `get()`, `post()`, `put()` and `delete()` methods.
 
-### setUri(string $uri)
+#### setUri(string $uri)
 
 Set the URI of the request.
 
-### setParams(array $params)
+#### setParams(array $params)
 
 Set the params passed to the request. GET params should not be passed in the uri, but via this method.
 
-### addHeader(string $name, string $value)
+#### addHeader(string $name, string $value)
 
 Add an header.
 
-### setHeaders(array $headers)
+#### setHeaders(array $headers)
 
 Replace all headers via those passed.
 
-### withHeaders()
+#### withHeaders()
 
 Return headers along the response.
 
-### setAuthToken(string $authToken)
+#### setAuthToken(string $authToken)
 
 Set an header authorization token in the form key: `Authorization`, value: `Token token="AUTH_TOKEN"`.
 
-### useCache(int $ttl = null)
+#### useCache(int $ttl = null)
 
 Cache each request via the cache defined in `module.config.php` (example below).
 
-### reset()
+#### reset()
 
 Reset all params passed before. Default headers will be restored if previously overwritten.
 
-### debug()
+#### debug()
 
 Instead of the response, return an array of all the configuration passed to the service.
 
-### returnObject()
+#### returnObject()
 
 The response will be an object.
 
-### returnArray()
+#### returnArray()
 
 The response will be an array.
 
-### returnObject()
+#### returnObject()
 
 The response will be a json string.
 
-### get()
+#### get()
 
 Perform a GET request and `return` a response.
 
-### post()
+#### post()
 
 Perform a POST request and `return` a response.
 
-### put()
+#### put()
 
 Perform a PUT request and `return` a response.
 
-### delete()
+#### delete()
 
 Perform a DELETE request and `return` a response.
 
