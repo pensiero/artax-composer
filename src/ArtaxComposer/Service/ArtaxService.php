@@ -365,6 +365,54 @@ class ArtaxService
     }
 
     /**
+     * @param mixed $uri
+     *
+     * @return $this
+     */
+    public function setUri($uri)
+    {
+        $this->uri = $uri;
+
+        return $this;
+    }
+
+    /**
+     * @param mixed $params
+     *
+     * @return $this
+     */
+    public function setParams($params)
+    {
+        $this->params = (array) $params;
+
+        return $this;
+    }
+
+    /**
+     * Add an header
+     *
+     * @param $name
+     * @param $value
+     */
+    public function addHeader($name, $value)
+    {
+        $this->headers[$name] = $value;
+    }
+
+    /**
+     * Replace all headers
+     *
+     * @param $headers
+     *
+     * @internal param $name
+     * @internal param $value
+     */
+    public function setHeaders($headers)
+    {
+        $this->headers = $headers;
+    }
+
+    /**
      * Headers to return with the response
      *
      * @param array $headers
@@ -374,6 +422,21 @@ class ArtaxService
     public function withHeaders($headers = [])
     {
         $this->headersToReturn = $headers;
+
+        return $this;
+    }
+
+    /**
+     * @param string $authToken
+     *
+     * @return $this
+     */
+    public function setAuthToken($authToken)
+    {
+        $this->authToken = $authToken;
+
+        // add authorization token header
+        $this->addHeader('Authorization', 'Token token="' . $this->authToken . '"');
 
         return $this;
     }
@@ -394,6 +457,100 @@ class ArtaxService
 
         $this->useCache = true;
         $this->cacheTtl = $ttl;
+
+        return $this;
+    }
+
+    /**
+     * Return debug information
+     *
+     * @return array
+     */
+    private function debugInfo()
+    {
+        return [
+            'method'          => $this->method,
+            'uri'             => $this->uri,
+            'params'          => $this->params,
+            'paramsJson'      => json_encode($this->params),
+            'resultFormat'    => $this->resultFormat,
+            'authToken'       => $this->authToken,
+            'cache'           => $this->cache,
+            'useCache'        => $this->useCache,
+            'cacheTtl'        => $this->cacheTtl,
+            'headers'         => $this->headers,
+            'headersToReturn' => $this->headersToReturn,
+        ];
+    }
+
+    /**
+     * Show debug information
+     *
+     * @return array
+     */
+    public function debug()
+    {
+        $this->debug = true;
+
+        return $this;
+    }
+
+    /**
+     * Reset all informations previously setted
+     */
+    public function reset()
+    {
+        $this->method = 'GET';
+        $this->uri = null;
+        $this->params = null;
+        $this->resultFormat = 'array';
+        $this->authToken = null;
+        $this->useCache = false;
+        $this->cacheTtl = null;
+        $this->headers = [];
+        $this->headersToReturn = [];
+        $this->debug = false;
+
+        // default headers specificied in config
+        if (isset($this->config['default_headers'])) {
+            $this->setHeaders($this->config['default_headers']);
+        }
+
+        return $this;
+    }
+
+    /**
+     * The response will be in object format
+     *
+     * @return $this
+     */
+    public function returnObject()
+    {
+        $this->resultFormat = 'object';
+
+        return $this;
+    }
+
+    /**
+     * The response will be in array format
+     *
+     * @return $this
+     */
+    public function returnArray()
+    {
+        $this->resultFormat = 'array';
+
+        return $this;
+    }
+
+    /**
+     * The response will be in JSON format
+     *
+     * @return $this
+     */
+    public function returnJson()
+    {
+        $this->resultFormat = 'json';
 
         return $this;
     }
@@ -460,174 +617,5 @@ class ArtaxService
         $this->method = 'DELETE';
 
         return $this->request();
-    }
-
-    /**
-     * The response will be in object format
-     *
-     * @return $this
-     */
-    public function returnObject()
-    {
-        $this->resultFormat = 'object';
-
-        return $this;
-    }
-
-    /**
-     * The response will be in array format
-     *
-     * @return $this
-     */
-    public function returnArray()
-    {
-        $this->resultFormat = 'array';
-
-        return $this;
-    }
-
-    /**
-     * The response will be in JSON format
-     *
-     * @return $this
-     */
-    public function returnJson()
-    {
-        $this->resultFormat = 'json';
-
-        return $this;
-    }
-
-    /**
-     * @param string $method
-     *
-     * @return $this
-     */
-    public function setMethod($method)
-    {
-        $this->method = $method;
-
-        return $this;
-    }
-
-    /**
-     * @param mixed $uri
-     *
-     * @return $this
-     */
-    public function setUri($uri)
-    {
-        $this->uri = $uri;
-
-        return $this;
-    }
-
-    /**
-     * @param mixed $params
-     *
-     * @return $this
-     */
-    public function setParams($params)
-    {
-        $this->params = (array) $params;
-
-        return $this;
-    }
-
-    /**
-     * @param string $authToken
-     *
-     * @return $this
-     */
-    public function setAuthToken($authToken)
-    {
-        $this->authToken = $authToken;
-
-        // add authorization token header
-        $this->addHeader('Authorization', 'Token token="' . $this->authToken . '"');
-
-        return $this;
-    }
-
-    /**
-     * Add an header
-     *
-     * @param $name
-     * @param $value
-     */
-    public function addHeader($name, $value)
-    {
-        $this->headers[$name] = $value;
-    }
-
-    /**
-     * Replace all headers
-     *
-     * @param $headers
-     *
-     * @internal param $name
-     * @internal param $value
-     */
-    public function setHeaders($headers)
-    {
-        $this->headers = $headers;
-    }
-
-    /**
-     * Reset all informations previously setted
-     */
-    public function reset()
-    {
-        $this->method = 'GET';
-        $this->uri = null;
-        $this->params = null;
-        $this->resultFormat = 'array';
-        $this->authToken = null;
-        $this->useCache = false;
-        $this->cacheTtl = null;
-        $this->headers = [];
-        $this->headersToReturn = [];
-        $this->debug = false;
-
-        // default headers specificied in config
-        if (isset($this->config['default_headers'])) {
-            $this->setHeaders($this->config['default_headers']);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Show debug information
-     *
-     * @return array
-     */
-    public function debug()
-    {
-        $this->debug = true;
-
-        return $this;
-    }
-
-    /**
-     * Return debug information
-     *
-     * @return array
-     */
-    private function debugInfo()
-    {
-        return [
-            'method'          => $this->method,
-            'uri'             => $this->uri,
-            'params'          => $this->params,
-            'paramsJson'      => json_encode($this->params),
-            'resultFormat'    => $this->resultFormat,
-            'authToken'       => $this->authToken,
-            'cache'           => $this->cache,
-            'useCache'        => $this->useCache,
-            'cacheTtl'        => $this->cacheTtl,
-            'headers'         => $this->headers,
-            'headersToReturn' => $this->headersToReturn,
-        ];
     }
 }
