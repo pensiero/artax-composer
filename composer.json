@@ -19,7 +19,7 @@
     ],
     "require": {
         "php": ">=5.3.3",
-        "amphp/artax": "1.*",
+        "amphp/artax": "2.*",
         "zendframework/zend-cache": "~2.4",
         "zendframework/zend-modulemanager": "~2.4",
         "zendframework/zend-mvc": "~2.4"
