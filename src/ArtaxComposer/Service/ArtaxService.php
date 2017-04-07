@@ -1,14 +1,7 @@
 <?php
 namespace ArtaxComposer\Service;
 
-use Amp;
-use Amp\Artax\Request as ArtaxRequest;
-use Amp\Artax\Response as ArtaxResponse;
-use Amp\Artax\Message as ArtaxMessage;
-use Amp\Artax\Client as ArtaxClient;
-use Amp\Artax\SocketException as AmpSocketException;
-use Amp\Dns\ResolutionException as AmpResolutionException;
-use Nbsock\SocketException as NbsockSocketException;
+use ArtaxComposer\Adapter\AdapterInterface;
 use ArtaxComposer\Exception\NotProvidedException;
 use Zend\Cache\Storage\Adapter\AbstractAdapter as AbstractCacheAdapter;
 
@@ -16,12 +9,6 @@ class ArtaxService
 {
     // default ttl of the cache
     const CACHE_TTL = 300;
-
-    // max connection timeout
-    const OP_MS_CONNECT_TIMEOUT = 15000;
-
-    // max attempts for artax requests
-    const REQUEST_MAX_ATTEMPTS = 2;
 
     /**
      * @var array
@@ -84,9 +71,14 @@ class ArtaxService
     protected $debug = false;
 
     /**
+     * @var AdapterInterface
+     */
+    protected $adapter = null;
+
+    /**
      * ArtaxService constructor.
      *
-     * @param array                             $config
+     * @param array                     $config
      * @param AbstractCacheAdapter|null $cache
      */
     public function __construct($config, $cache = null)
@@ -94,9 +86,28 @@ class ArtaxService
         $this->config = $config;
         $this->cache = $cache;
 
+        // initialize the adapter
+        $this->initAdapter();
+
         // default headers specificied in config
         if (isset($this->config['default_headers'])) {
             $this->setHeaders($this->config['default_headers']);
+        }
+    }
+
+    private function initAdapter()
+    {
+        // check if class exit
+        if (!class_exists($this->config['adapter'])) {
+            throw new NotProvidedException('An adapter must be provided via config in order to run ArtaxComposer');
+        }
+
+        // instanciate the adapter
+        $this->adapter = new $this->config['adapter']();
+
+        // check if the adapter implements the AdapterInterface
+        if (!($this->adapter instanceof AdapterInterface)) {
+            throw new NotProvidedException('The adapter must implement an AdapterInterface in order to run ArtaxComposer');
         }
     }
 
@@ -139,50 +150,6 @@ class ArtaxService
     }
 
     /**
-     * Do the request (enabled multiple attempts)
-     *
-     * @param ArtaxMessage $request
-     * @param int          $attempt
-     *
-     * @return ArtaxResponse|mixed
-     * @throws AmpSocketException
-     * @throws NbsockSocketException
-     * @throws null
-     */
-    private function doRequest(ArtaxMessage $request, $attempt = 1)
-    {
-        $artaxClient = new ArtaxClient();
-        $artaxClient->setOption(ArtaxClient::OP_MS_CONNECT_TIMEOUT, self::OP_MS_CONNECT_TIMEOUT); // connection timeout
-
-        try {
-            /** @var ArtaxResponse $ampResponse */
-            $ampResponse = Amp\wait($artaxClient->request($request));
-        }
-        catch (\Exception $exception) {
-
-            if (
-                $exception instanceof AmpSocketException
-                || $exception instanceof AmpResolutionException
-                || $exception instanceof NbsockSocketException
-            ) {
-                // try a second attempt
-                if ($attempt < self::REQUEST_MAX_ATTEMPTS) {
-                    return $this->doRequest($request, $attempt + 1);
-                }
-
-                // use seeds if we are offline (SocketException mean that we are offline)
-                if ($seeds = $this->findSeeds()) {
-                    return $seeds;
-                }
-            }
-
-            throw $exception;
-        }
-
-        return $ampResponse;
-    }
-
-    /**
      * Elaborate seeds filepath based on cachekey
      *
      * @return string
@@ -211,6 +178,10 @@ class ArtaxService
      */
     private function findSeeds()
     {
+        if (!isset($this->config['seeds'])) {
+            return false;
+        }
+
         // check if seeds are enabled
         if ($this->config['seeds']['enabled'] !== true) {
             return false;
@@ -243,6 +214,10 @@ class ArtaxService
      */
     private function writeSeeds($response)
     {
+        if (!isset($this->config['seeds'])) {
+            return false;
+        }
+
         // check if seeds are enabled
         if ($this->config['seeds']['enabled'] !== true) {
             return false;
@@ -312,36 +287,34 @@ class ArtaxService
                 return $seeds;
             }
 
-            $request = (new ArtaxRequest)->setUri($this->uri)
-                                         ->setMethod($this->method)
-                                         ->setAllHeaders($this->headers);
+            $this
+                ->adapter
+                ->setUri($this->uri)
+                ->setMethod($this->method)
+                ->setHeaders($this->headers);
 
+            // body
             if ($this->params != null) {
-                $request->setBody(json_encode($this->params));
-            }
-
-            // make the request (first attempt)
-            $ampResponse = $this->doRequest($request);
-
-            // return response if it's not an ArtaxResponse (it could be a string cached in local file)
-            if (!$ampResponse instanceof ArtaxResponse) {
-                return $ampResponse;
+                $this->adapter->setBody(json_encode($this->params));
             }
 
             // log time (END)
             $timeEnd = microtime(true);
-            if ($this->config['newrelic'] === true && extension_loaded('newrelic')) {
+            if (isset($this->config['newrelic']) && $this->config['newrelic'] === true && extension_loaded('newrelic')) {
                 newrelic_custom_metric('Custom/Artax/Load_time', round($timeEnd - $timeStart));
             }
 
-            // code and body
-            $response['code'] = (int) $ampResponse->getStatus();
-            $response['body'] = json_decode($ampResponse->getBody(), true);
+            // execute the request
+            $this->adapter->doRequest();
 
-            // optional headers
+            // code and body
+            $response['code'] = $this->adapter->getResponseStatusCode();
+            $response['body'] = $this->adapter->getResponseBody();
+
+            // optional headers to return
             foreach ($this->headersToReturn as $headerToReturn) {
-                if ($ampResponse->hasHeader($headerToReturn)) {
-                    $response['headers'][$headerToReturn] = $ampResponse->getHeader($headerToReturn)[0];
+                if ($this->adapter->hasResponseHeader($headerToReturn)) {
+                    $response['headers'][$headerToReturn] = $this->adapter->getResponseHeader($headerToReturn);
                 }
             }
 

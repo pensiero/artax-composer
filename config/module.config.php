@@ -13,6 +13,11 @@ return [
     'artax_composer'  => [
 
         /*
+         * Adapter implementation
+         */
+        'adapter' => 'ArtaxComposer\Adapter\ArtaxAdapter',
+
+        /*
          * Cache could be:
          *  - null
          *  - an instance of Zend\Cache\Storage\Adapter\AbstractAdapter
