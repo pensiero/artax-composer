@@ -24,7 +24,8 @@
     "amphp/artax": "2.*",
     "zendframework/zend-cache": "~2.7",
     "zendframework/zend-modulemanager": "~2.7",
-    "zendframework/zend-mvc": "~2.7"
+    "zendframework/zend-mvc": "~2.7",
+    "php-http/guzzle6-adapter": "1.*"
   },
   "autoload": {
     "psr-0": {
